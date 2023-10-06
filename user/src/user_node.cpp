@@ -45,6 +45,7 @@ public:
      */
     // 计数：用于确认当前定位步骤所用的aprilTag编号
     int count = 0;
+    int tagID = 0;
 
     // Tag相对于cam的位姿记录
     Eigen::Vector3d tag2CamPosition;
@@ -148,7 +149,11 @@ void moveControl::aprilTagCallback(const apriltag_ros::AprilTagDetectionArray::C
         if (aprilTagDetectFlag)
         {
             /* 转存数据 */
-            if (msg->detections[0].id[0] == count)
+            if (msg->detections.size() == 0)
+            {
+                return;
+            }
+            if (msg->detections[0].id[0] == tagID)
             {
                 for (std::vector<apriltag_ros::AprilTagDetection>::const_iterator it = msg->detections.begin(); it != msg->detections.end(); ++it)
                 {
@@ -183,13 +188,12 @@ void moveControl::aprilTagCallback(const apriltag_ros::AprilTagDetectionArray::C
                 /* 机器人旋转调整位姿，直到tag在robot坐标系下y坐标为0 */
                 // std::cout << "ouler_angles: " << euler_angles(0) << std::endl;
                 targetDis = sqrt(pow(tag2RobotT(0, 3), 2) + pow(tag2RobotT(1, 3), 2));
-                std::cout << "ytemp: " << ytemp << std::endl;
-                std::cout << "targetDis: " << targetDis << std::endl;
-                std::cout << "angle z: " << euler_angles(0) << std::endl;
-                if (abs(ytemp) / targetDis < 0.0001)
+                // std::cout << "ytemp: " << ytemp << std::endl;
+                // std::cout << "targetDis: " << targetDis << std::endl;
+                // std::cout << "angle z: " << euler_angles(0) << std::endl;
+                if (abs(ytemp) / targetDis < 0.0005)
                 {
                     n.setParam("aprilTagDetectFlag", 0);
-                    /* 确定机器人相对于当前需要到达AprilTag标记位置所要行进的距离 */
                     n.setParam("moveLinearFlag", 1);
                     // 允许更新base坐标系
                     n.setParam("odomUpdateFlag", 1);
@@ -198,8 +202,9 @@ void moveControl::aprilTagCallback(const apriltag_ros::AprilTagDetectionArray::C
                         vel_msg.angular.z = 0.0;
                         vel_msg.linear.x = (i + 1) * 0.02;
                         pub1.publish(vel_msg);
-                        sleep(0.01);
+                        sleep(0.02);
                     }
+                    std::cout << "INFO: pose get it." << std::endl;
                 }
                 else
                 {
@@ -252,7 +257,7 @@ void moveControl::tracerCallback(const nav_msgs::Odometry::ConstPtr &odom)
             // 判断是否需要更新base坐标系，当机器人运动到目标标签处更新
             if (odomUpdateFlag)
             {
-                std::cout << "INFO: Update base robot pose." << std::endl;
+                std::cout << "INFO: Update base robot pose before linear move." << std::endl;
                 baseRobotPos = robotPosT;
                 n.setParam("odomUpdateFlag", 0);
             }
@@ -274,7 +279,7 @@ void moveControl::tracerCallback(const nav_msgs::Odometry::ConstPtr &odom)
             distance = sqrt(pow(nowRobot2DPos(0), 2) + pow(nowRobot2DPos(1), 2));
 
             // 若到达tag点，机器人停止运动
-            if (distance - targetDis > 0)
+            if (abs(distance - targetDis) < 0.1)
             {
                 std::cout << "Robot arrives at position " << count << std::endl;
 
@@ -284,12 +289,15 @@ void moveControl::tracerCallback(const nav_msgs::Odometry::ConstPtr &odom)
                     vel_msg.linear.x = 0.0;
                     vel_msg.angular.z = 0.2 - (i + 1) * 0.02;
                     pub1.publish(vel_msg);
-                    sleep(0.01);
+                    sleep(0.02);
                 }
                 
                 // 更新下一个目标点
                 count++;
                 n.setParam("targetCount",count);
+                tagID = count * 12;
+
+                std::cout << "Next move to: " << count << std::endl;
 
                 // 允许更新base坐标系
                 n.setParam("odomUpdateFlag",1);

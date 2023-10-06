@@ -109,7 +109,7 @@ int socketControl::socketListener()
     vel_msg.linear.x = 0.0;
 
     count = 0;
-    n.getParam("targetCount", count);
+
 
     while (ros::ok())
     {
@@ -126,7 +126,7 @@ int socketControl::socketListener()
         const char *buffer1 = buffer;
 
         // 1：移动到下一个点
-        if (strcmp(buffer1, "1"))
+        if (!strcmp(buffer1, "1"))
         {
             std::cout << "收到命令：移动到下一个点" << std::endl;
             n.setParam("NaviCtrlFlag", 1);
@@ -135,7 +135,7 @@ int socketControl::socketListener()
             strcpy(buffer, std::to_string(count).c_str()); // reply cilent with "ok"
         }
         // 2：暂停
-        else if (strcmp(buffer1, "2"))
+        else if(!strcmp(buffer1, "2"))
         {
             std::cout << "收到命令：立即停止" << std::endl;
             n.setParam("NaviCtrlFlag", 0);
@@ -146,12 +146,13 @@ int socketControl::socketListener()
                 vel_msg.linear.x = 0.0;
                 vel_msg.angular.z = 0.2 - (i + 1) * 0.02;
                 pub.publish(vel_msg);
-                sleep(0.01);
+                sleep(0.02);
             }
-            strcpy(buffer, "0"); // reply cilent with "ok"
+            bool result = n.getParam("targetCount", count);
+            strcpy(buffer, std::to_string(count).c_str());
         }
         // 3：继续
-        else if(strcmp(buffer1, "3"))
+        else if(!strcmp(buffer1, "3"))
         {
             std::cout << "收到命令：继续移动" << std::endl;
             n.setParam("NaviCtrlFlag", 1);
@@ -160,7 +161,7 @@ int socketControl::socketListener()
             strcpy(buffer, std::to_string(count).c_str()); // reply cilent with "ok"
         }
         // 4：查询
-        else if(strcmp(buffer1, "4"))
+        else if(!strcmp(buffer1, "4"))
         {
             std::cout << "收到命令：查询位置" << std::endl;
             bool result = n.getParam("targetCount", count);
