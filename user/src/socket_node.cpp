@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <iostream>
 #include <cstring>
+#include <string>
+#include <vector>
 #include <stdlib.h>
 #include <sys/fcntl.h>
 #include <sys/socket.h>
@@ -10,12 +12,48 @@
 #include <sys/types.h>
 #include <arpa/inet.h>
 #include <ros/ros.h>
-using namespace std;
-int main(int argc, char *argv[])
-{
-    ros::init(argc, argv, "socket_node");
-    ros::NodeHandle n;
+#include <cmath>
+#include <iomanip>
+#include <time.h>
+#include <ros/callback_queue.h>
+#include <ros/console.h>
+#include <tf/transform_datatypes.h>
+#include <nav_msgs/Odometry.h>
+#include <geometry_msgs/Twist.h>
+#include <geometry_msgs/PoseWithCovarianceStamped.h>
+#include <geometry_msgs/Pose.h>
+#include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/Pose2D.h>
+#include <std_msgs/String.h>
 
+using namespace std;
+
+class socketControl
+{
+
+private:
+    ros::NodeHandle n;
+    ros::Publisher pub;
+    geometry_msgs::Twist vel_msg;
+
+public:
+    /*
+     * 变量定义
+     */
+    // 各状态量定义
+    int count;
+
+    /*
+     * 函数定义
+     */
+    socketControl() {}
+
+    int socketListener();
+};
+
+
+int socketControl::socketListener()
+{
     // first step ->create socket for server
     int listenfd;
     listenfd = socket(AF_INET, SOCK_STREAM, 0); // in socket code,it must be AF_INET(protocol)
@@ -31,7 +69,7 @@ int main(int argc, char *argv[])
     serveraddr.sin_family = AF_INET;
     serveraddr.sin_addr.s_addr = htonl(INADDR_ANY);
     // serveraddr.sin_addr.s_addr=atoi(argv[1]);// specify ip address
-    serveraddr.sin_port = htons(atoi(argv[1])); // specify port
+    serveraddr.sin_port = htons(8888); // specify port
     // printf("%s %s\n",argv[1],argv[2]);
     if (bind(listenfd, (struct sockaddr *)&serveraddr, sizeof(serveraddr)) != 0)
     {
@@ -65,7 +103,15 @@ int main(int argc, char *argv[])
     // 5th step ->connect with client,receive data and reply OK
     char buffer[1024];
     int command;
-    while (1)
+
+    pub = n.advertise<geometry_msgs::Twist>("/cmd_vel", 10);
+    vel_msg.angular.z = 0.0;
+    vel_msg.linear.x = 0.0;
+
+    count = 0;
+    n.getParam("targetCount", count);
+
+    while (ros::ok())
     {
         int iret;
         memset(buffer, 0, sizeof(buffer));
@@ -77,22 +123,50 @@ int main(int argc, char *argv[])
         }
 
         printf("receive :%s\n", buffer);
-        command = (long)buffer;
-        
-        if(command == 1)
+        const char *buffer1 = buffer;
+
+        // 1：移动到下一个点
+        if (strcmp(buffer1, "1"))
         {
             std::cout << "收到命令：移动到下一个点" << std::endl;
-            n.setParam("NaviCtrlFlag",1);
+            n.setParam("NaviCtrlFlag", 1);
             n.setParam("aprilTagDetectFlag", 1);
-            strcpy(buffer, "ok, I'll move."); // reply cilent with "ok"
+            bool result = n.getParam("targetCount", count);
+            strcpy(buffer, std::to_string(count).c_str()); // reply cilent with "ok"
         }
-        else if(command == 2) 
+        // 2：暂停
+        else if (strcmp(buffer1, "2"))
         {
             std::cout << "收到命令：立即停止" << std::endl;
-            n.setParam("NaviCtrlFlag",0);
-            strcpy(buffer, "ok, I'll stop"); // reply cilent with "ok"
+            n.setParam("NaviCtrlFlag", 0);
+            n.setParam("moveLinearFlag", 0);
+            sleep(0.05);
+            for (int i = 0; i < 10; i++)
+            {
+                vel_msg.linear.x = 0.0;
+                vel_msg.angular.z = 0.2 - (i + 1) * 0.02;
+                pub.publish(vel_msg);
+                sleep(0.01);
+            }
+            strcpy(buffer, "0"); // reply cilent with "ok"
         }
-        
+        // 3：继续
+        else if(strcmp(buffer1, "3"))
+        {
+            std::cout << "收到命令：继续移动" << std::endl;
+            n.setParam("NaviCtrlFlag", 1);
+            n.setParam("aprilTagDetectFlag", 1);
+            bool result = n.getParam("targetCount", count);
+            strcpy(buffer, std::to_string(count).c_str()); // reply cilent with "ok"
+        }
+        // 4：查询
+        else if(strcmp(buffer1, "4"))
+        {
+            std::cout << "收到命令：查询位置" << std::endl;
+            bool result = n.getParam("targetCount", count);
+            strcpy(buffer, std::to_string(count).c_str()); // reply cilent with "ok"
+        }
+
         if ((iret = send(clintfd, buffer, strlen(buffer), 0)) <= 0)
         {
             perror("send");
@@ -102,6 +176,15 @@ int main(int argc, char *argv[])
     // 6th close socket
     close(listenfd);
     close(clintfd);
+    return 0;
+}
+
+
+int main(int argc, char *argv[])
+{
+    ros::init(argc, argv, "socket_node");
+    socketControl s;
+    int flag = s.socketListener();
 
     return 0;
 }

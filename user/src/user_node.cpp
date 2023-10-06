@@ -76,7 +76,7 @@ public:
     int NaviCtrlFlag;
     int odomUpdateFlag = 0;
     int moveLinearFlag = 0;
-    int waitingFlag = 1;
+    // int waitingFlag = 1;
 
     /*
      * 函数定义
@@ -93,7 +93,6 @@ public:
 /* ROS初始化：spin()线程 */
 void moveControl::startRunning()
 {
-
     /* 计算相机在机器人坐标系下 标定的 齐次变换矩阵 */
     // 预先标定aprilTag到机器人距离为1m(x方向)
     calibrationT << 1, 0, 0, 0.7945,
@@ -130,6 +129,7 @@ void moveControl::startRunning()
     n.setParam("aprilTagDetectFlag",1);
     n.setParam("odomUpdateFlag",0);
     n.setParam("moveLinearFlag",0);
+    n.setParam("targetCount",count);
     sub1 = n.subscribe<apriltag_ros::AprilTagDetectionArray>("tag_detections", 5, &moveControl::aprilTagCallback, this);
     sub2 = n.subscribe<nav_msgs::Odometry>("/odom", 5, &moveControl::tracerCallback, this);
     pub1 = n.advertise<geometry_msgs::Twist>("/cmd_vel", 10);
@@ -191,9 +191,15 @@ void moveControl::aprilTagCallback(const apriltag_ros::AprilTagDetectionArray::C
                     n.setParam("aprilTagDetectFlag", 0);
                     /* 确定机器人相对于当前需要到达AprilTag标记位置所要行进的距离 */
                     n.setParam("moveLinearFlag", 1);
-                    vel_msg.angular.z = 0.0;
-                    vel_msg.linear.x = 0.08;
-                    pub1.publish(vel_msg);
+                    // 允许更新base坐标系
+                    n.setParam("odomUpdateFlag", 1);
+                    for(int i = 0; i < 10;i++)
+                    {
+                        vel_msg.angular.z = 0.0;
+                        vel_msg.linear.x = (i + 1) * 0.02;
+                        pub1.publish(vel_msg);
+                        sleep(0.01);
+                    }
                 }
                 else
                 {
@@ -236,11 +242,22 @@ void moveControl::tracerCallback(const nav_msgs::Odometry::ConstPtr &odom)
             robot3DPose(1) = odom->pose.pose.orientation.y;
             robot3DPose(2) = odom->pose.pose.orientation.z;
             robot3DPose(3) = odom->pose.pose.orientation.w;
-
-            /* 计算aprilTag在机器人坐标系下的齐次变换矩阵 */
+            
             Eigen::Quaterniond robot3DQ(robot3DPose);
             robotPosR = robot3DQ.toRotationMatrix();
             robotPosT.block(0, 0, 3, 3) = robotPosR;
+
+            
+            bool result3 = n.getParam("odomUpdateFlag", odomUpdateFlag);
+            // 判断是否需要更新base坐标系，当机器人运动到目标标签处更新
+            if (odomUpdateFlag)
+            {
+                std::cout << "INFO: Update base robot pose." << std::endl;
+                baseRobotPos = robotPosT;
+                n.setParam("odomUpdateFlag", 0);
+            }
+
+            /* 计算当前机器人位姿在参考坐标系下的齐次变换矩阵 */
             nowRobotPos = baseRobotPos.inverse() * robotPosT;
 
             // 计算已经移动的距离
@@ -256,20 +273,23 @@ void moveControl::tracerCallback(const nav_msgs::Odometry::ConstPtr &odom)
             // diff = sqrt(pow(targetRobotPos(0) - nowRobot2DPos(0), 2) + pow(targetRobotPos(1) - nowRobot2DPos(1), 2));
             distance = sqrt(pow(nowRobot2DPos(0), 2) + pow(nowRobot2DPos(1), 2));
 
-            // std::cout << "robot odom: " << robotPosT << std::endl;
-            // std::cout << "distance: " << distance << std::endl;
-
-            pub1.publish(vel_msg);
-
             // 若到达tag点，机器人停止运动
             if (distance - targetDis > 0)
             {
                 std::cout << "Robot arrives at position " << count << std::endl;
 
                 // 发布机器人停止消息
-                vel_msg.linear.x = 0.0;
-                vel_msg.angular.z = 0.0;
-                pub1.publish(vel_msg);
+                for (int i = 0; i < 10;i++)
+                {
+                    vel_msg.linear.x = 0.0;
+                    vel_msg.angular.z = 0.2 - (i + 1) * 0.02;
+                    pub1.publish(vel_msg);
+                    sleep(0.01);
+                }
+                
+                // 更新下一个目标点
+                count++;
+                n.setParam("targetCount",count);
 
                 // 允许更新base坐标系
                 n.setParam("odomUpdateFlag",1);
