@@ -96,14 +96,14 @@ void moveControl::startRunning()
 {
     /* 计算相机在机器人坐标系下 标定的 齐次变换矩阵 */
     // 预先标定aprilTag到机器人距离为1m(x方向)
-    calibrationT << 1, 0, 0, 0.7945,
+    calibrationT << 1, 0, 0, 0.625,
                     0, 1, 0, 0,
                     0, 0, 1, 0,
                     0, 0, 0, 1;
    
     
-    cTag2CamPosition << -0.071291, -0.186241, 1.66887;
-    cTag2CamPose << 3.086, -0.189099, -1.5276; //rpy
+    cTag2CamPosition << -0.0196187, 0.38249, 1.23031;  -0.071291, -0.186241, 1.66887;
+    cTag2CamPose << -3.11081, -0.666531, -1.6476; //rpy
 
     // 计算标签在相机坐标系下的齐次变换矩阵
     cTag2CamT = Eigen::Matrix4d::Identity();
@@ -120,14 +120,14 @@ void moveControl::startRunning()
 
     // 计算相机在机器人坐标系下的位姿
     cam2RobotT = calibrationT * cTag2CamT.inverse();
-    std::cout << cam2RobotT << std::endl;
+    // std::cout << cam2RobotT << std::endl;
 
     // 给定机器人base初始值：与{0}坐标系重合
     baseRobotPos = Eigen::Matrix4d::Identity();
 
     /* 初始化ROS订阅者和发布者 */
-    n.setParam("NaviCtrlFlag",1);
-    n.setParam("aprilTagDetectFlag",1);
+    n.setParam("NaviCtrlFlag",0);
+    n.setParam("aprilTagDetectFlag",0);
     n.setParam("odomUpdateFlag",0);
     n.setParam("moveLinearFlag",0);
     n.setParam("targetCount",count);
@@ -202,9 +202,9 @@ void moveControl::aprilTagCallback(const apriltag_ros::AprilTagDetectionArray::C
                         vel_msg.angular.z = 0.0;
                         vel_msg.linear.x = (i + 1) * 0.02;
                         pub1.publish(vel_msg);
-                        sleep(0.02);
+                        sleep(0.05);
                     }
-                    std::cout << "INFO: pose get it." << std::endl;
+                    // std::cout << "INFO: pose get it." << std::endl;
                 }
                 else
                 {
@@ -289,15 +289,15 @@ void moveControl::tracerCallback(const nav_msgs::Odometry::ConstPtr &odom)
                     vel_msg.linear.x = 0.0;
                     vel_msg.angular.z = 0.2 - (i + 1) * 0.02;
                     pub1.publish(vel_msg);
-                    sleep(0.02);
+                    sleep(0.05);
                 }
                 
                 // 更新下一个目标点
                 count++;
-                n.setParam("targetCount",count);
-                tagID = count * 12;
+                n.setParam("targetCount", count);
+                tagID = (count % 4) * 12;
 
-                std::cout << "Next move to: " << count << std::endl;
+                // std::cout << "Next move to: " << count << std::endl;
 
                 // 允许更新base坐标系
                 n.setParam("odomUpdateFlag",1);
@@ -327,8 +327,6 @@ int main(int argc, char **argv)
     ROS_INFO("Quit robot navigation.");
     return 0;
 }
-
-
 
 
 // /* 键盘监听线程 */

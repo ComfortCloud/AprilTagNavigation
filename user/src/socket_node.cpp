@@ -146,7 +146,7 @@ int socketControl::socketListener()
                 vel_msg.linear.x = 0.0;
                 vel_msg.angular.z = 0.2 - (i + 1) * 0.02;
                 pub.publish(vel_msg);
-                sleep(0.02);
+                sleep(0.04);
             }
             bool result = n.getParam("targetCount", count);
             strcpy(buffer, std::to_string(count).c_str());

@@ -1,0 +1,15 @@
+<launch>
+
+  <node pkg="user" type="user_node" name="user_node" respawn="true" output="screen">
+  </node>
+
+  <node pkg="user" type="serial_node" name="serial_node" respawn="true" output="screen">
+  </node>
+
+  <include file="$(find apriltag_ros)/launch/continuous_detection.launch">
+  </include>
+  
+  <include file="$(find tracer_bringup)/launch/tracer_robot_base.launch">
+  </include>
+  
+</launch>

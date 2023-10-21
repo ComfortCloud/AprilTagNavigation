@@ -13,6 +13,7 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   message_generation
   apriltag_ros
+  serial
 )
 
 ## System dependencies are found with CMake's conventions
@@ -127,6 +128,7 @@ include_directories(
   ${EIGEN3_INCLUDE_DIR}
 )
 
+
 ## Declare a C++ library
 # add_library(${PROJECT_NAME}
 #   src/${PROJECT_NAME}/user.cpp
@@ -145,6 +147,8 @@ add_executable(calibration_node src/calibration_node.cpp)
 add_executable(server_node src/serverTest.cpp)
 add_executable(client_node src/clientTest.cpp)
 add_executable(socket_node src/socket_node.cpp)
+add_executable(serial_node src/serial_node.cpp)
+
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -155,6 +159,7 @@ add_executable(socket_node src/socket_node.cpp)
 ## Add cmake target dependencies of the executable
 ## same as for the library above
 add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+add_dependencies(serial_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(${PROJECT_NAME}_node
@@ -178,6 +183,10 @@ target_link_libraries(client_node
 
 target_link_libraries(socket_node
   ${LIBS}
+  ${catkin_LIBRARIES}
+)
+
+target_link_libraries(serial_node
   ${catkin_LIBRARIES}
 )
 
